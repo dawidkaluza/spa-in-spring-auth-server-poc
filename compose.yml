@@ -1,0 +1,17 @@
+services:
+  server:
+    build: ./server
+    networks:
+      - main
+    ports:
+      - "8080:8080"
+
+  web:
+    build: ./web
+    networks:
+      - main
+    ports:
+      - "9090:9090"
+
+networks:
+  main: {}
