@@ -129,7 +129,7 @@ const SignIn = () => {
 
       case REQUEST_STATUS.APP_ERROR: {
         return (
-          <p style={{ color: "red" }}>Unexpected error. Check logs to see what happened.</p>
+          <p style={{ color: "red" }}>Unexpected error.</p>
         );
       }
 
