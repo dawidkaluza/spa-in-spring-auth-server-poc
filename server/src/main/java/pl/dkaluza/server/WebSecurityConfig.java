@@ -22,7 +22,6 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
 import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
-import org.springframework.security.oauth2.server.authorization.web.OAuth2AuthorizationEndpointFilter;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
@@ -33,7 +32,6 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import java.lang.reflect.Field;
 import java.util.UUID;
 
 @Configuration
@@ -43,11 +41,11 @@ class WebSecurityConfig {
 
     @Bean
     @Order(1)
-    public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http, ExtendedRedirectStrategy redirectStrategy) throws Exception {
+    public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http) throws Exception {
         OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(http);
         http.getConfigurer(OAuth2AuthorizationServerConfigurer.class)
             .authorizationEndpoint(authorization ->
-                authorization.consentPage("http://localhost:9090/consent")
+                authorization.consentPage("/consent-page")
             )
             .oidc(Customizer.withDefaults());	// Enable OpenID Connect 1.0
         http
@@ -63,17 +61,7 @@ class WebSecurityConfig {
             // Accept access tokens for User Info and/or Client Registration
             .oauth2ResourceServer((oauth2) -> oauth2.jwt(Customizer.withDefaults()));
 
-        // Trick to use custom redirectStrategy, since it's not configurable.
-        var filterChain = http.build();
-        var authorizationEndpointFilter = (OAuth2AuthorizationEndpointFilter) filterChain.getFilters().stream()
-            .filter(filter -> filter instanceof OAuth2AuthorizationEndpointFilter)
-            .findAny().orElseThrow();
-
-        Field field = OAuth2AuthorizationEndpointFilter.class.getDeclaredField("redirectStrategy");
-        field.setAccessible(true);
-        field.set(authorizationEndpointFilter, redirectStrategy);
-
-        return filterChain;
+        return http.build();
     }
 
 
@@ -113,6 +101,17 @@ class WebSecurityConfig {
                 authorize
                     .anyRequest().authenticated()
             );
+
+        return http.build();
+    }
+
+    @Bean
+    @Order(3)
+    public SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
+        //noinspection Convert2MethodRef
+        http
+            .cors(Customizer.withDefaults())
+            .csrf(csrf -> csrf.disable());
 
         return http.build();
     }
