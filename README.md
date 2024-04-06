@@ -26,16 +26,14 @@ Repo is composed of two projects:
 
 So we can say: auth-server = server + web.
 
-Once application has started, login via l:admin p:admin
-
-### Via docker compose
+### Run via docker compose
 
 If you have docker compose, open terminal in the project's dir and run:
 ```
 docker compose up --build
 ```
 
-### Via gradle and npm
+### Run via gradle and npm
 
 If you prefer to not use docker, you can use Gradle and NPM.
 ```
@@ -48,4 +46,10 @@ cd web
 npm ci
 npm start
 ```
+
+### Go through authorization code flow
+Once application has started, you can initiate authorization code flow by opening the following page in your browser:
+http://localhost:8080/oauth2/authorize?response_type=code&client_id=client&state=1234xyz&code_challenge=MMRGwBwWyq4DLBuYbwPHRF6HGyVnN_UAUDnQ8GVGjn8&code_challenge_method=S256&scope=profile
+It's relevant to "Initiate client authorization request" step depicted in the diagram above.
+To login, use l:admin p:admin
 
