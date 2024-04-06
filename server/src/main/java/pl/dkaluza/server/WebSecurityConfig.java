@@ -16,6 +16,9 @@ import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
+import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames;
+import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationException;
+import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationToken;
 import org.springframework.security.oauth2.server.authorization.client.InMemoryRegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
@@ -23,15 +26,20 @@ import org.springframework.security.oauth2.server.authorization.config.annotatio
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
 import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
+import org.springframework.security.web.DefaultRedirectStrategy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
 import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
+import org.springframework.util.StringUtils;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.util.UriComponentsBuilder;
+import org.springframework.web.util.UriUtils;
 
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 @Configuration
@@ -41,11 +49,61 @@ class WebSecurityConfig {
 
     @Bean
     @Order(1)
-    public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http, ExtendedRedirectStrategy extendedRedirectStrategy) throws Exception {
         OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(http);
         http.getConfigurer(OAuth2AuthorizationServerConfigurer.class)
             .authorizationEndpoint(authorization ->
-                authorization.consentPage("/consent-page")
+                authorization
+                    .authorizationResponseHandler((req, res, auth) -> {
+                        var authorizationCodeRequestAuthentication = (OAuth2AuthorizationCodeRequestAuthenticationToken) auth;
+                        var uriBuilder = UriComponentsBuilder
+                            .fromUriString(authorizationCodeRequestAuthentication.getRedirectUri())
+                            .queryParam(OAuth2ParameterNames.CODE, authorizationCodeRequestAuthentication.getAuthorizationCode().getTokenValue());
+
+                        if (StringUtils.hasText(authorizationCodeRequestAuthentication.getState())) {
+                            uriBuilder.queryParam(
+                                OAuth2ParameterNames.STATE,
+                                UriUtils.encode(authorizationCodeRequestAuthentication.getState(), StandardCharsets.UTF_8));
+                        }
+
+                        var redirectUri = uriBuilder.build(true).toUriString();
+                        extendedRedirectStrategy.sendRedirect(req, res, redirectUri);
+                    })
+                    .errorResponseHandler((req, res, exception) -> {
+                        var authorizationCodeRequestAuthenticationException = (OAuth2AuthorizationCodeRequestAuthenticationException) exception;
+                        var error = authorizationCodeRequestAuthenticationException.getError();
+                        var authorizationCodeRequestAuthentication = authorizationCodeRequestAuthenticationException.getAuthorizationCodeRequestAuthentication();
+
+                        if (authorizationCodeRequestAuthentication == null ||
+                            !StringUtils.hasText(authorizationCodeRequestAuthentication.getRedirectUri())) {
+                            res.sendError(HttpStatus.BAD_REQUEST.value(), error.toString());
+                            return;
+                        }
+
+                        var uriBuilder = UriComponentsBuilder
+                            .fromUriString(authorizationCodeRequestAuthentication.getRedirectUri())
+                            .queryParam(OAuth2ParameterNames.ERROR, error.getErrorCode());
+
+                        if (StringUtils.hasText(error.getDescription())) {
+                            uriBuilder.queryParam(
+                                OAuth2ParameterNames.ERROR_DESCRIPTION,
+                                UriUtils.encode(error.getDescription(), StandardCharsets.UTF_8));
+                        }
+                        if (StringUtils.hasText(error.getUri())) {
+                            uriBuilder.queryParam(
+                                OAuth2ParameterNames.ERROR_URI,
+                                UriUtils.encode(error.getUri(), StandardCharsets.UTF_8));
+                        }
+                        if (StringUtils.hasText(authorizationCodeRequestAuthentication.getState())) {
+                            uriBuilder.queryParam(
+                                OAuth2ParameterNames.STATE,
+                                UriUtils.encode(authorizationCodeRequestAuthentication.getState(), StandardCharsets.UTF_8));
+                        }
+
+                        var redirectUri = uriBuilder.build(true).toUriString();
+                        extendedRedirectStrategy.sendRedirect(req, res, redirectUri);
+                    })
+                    .consentPage("/consent-page")
             )
             .oidc(Customizer.withDefaults());	// Enable OpenID Connect 1.0
         http
