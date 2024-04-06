@@ -49,7 +49,9 @@ npm start
 
 ### Go through authorization code flow
 Once application has started, you can initiate authorization code flow by opening the following page in your browser:
+
 http://localhost:8080/oauth2/authorize?response_type=code&client_id=client&state=1234xyz&code_challenge=MMRGwBwWyq4DLBuYbwPHRF6HGyVnN_UAUDnQ8GVGjn8&code_challenge_method=S256&scope=profile
+
 It's relevant to "Initiate client authorization request" step depicted in the diagram above.
 To login, use l:admin p:admin
 
